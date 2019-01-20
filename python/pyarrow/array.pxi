@@ -653,6 +653,20 @@ cdef class StructArray(Array):
         result.init(c_result)
         return result
 
+    def num_children(self):
+        return self.ap.num_fields()
+
+    def child_array(self, int i):
+        cdef:
+            CStructArray* c_struct_array
+            shared_ptr[CArray] child
+        if i < 0 or i >= self.num_children():
+            raise IndexError('Invalid child array index')
+
+        c_struct_array = <CStructArray*>self.ap
+        child = c_struct_array.field(i)
+        return pyarrow_wrap_array(child)
+
 
 cdef dict _array_classes = {
     _Type_NA: NullArray,

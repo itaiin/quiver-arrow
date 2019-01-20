@@ -55,6 +55,12 @@ cdef class ListType(DataType):
         const CListType* list_type
 
 
+cdef class StructType(DataType):
+    cdef:
+        const CStructType* struct_type
+        int num_children
+
+
 cdef class DictionaryType(DataType):
     cdef:
         const CDictionaryType* dict_type

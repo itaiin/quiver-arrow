@@ -115,6 +115,28 @@ cdef class ListType(DataType):
             return pyarrow_wrap_data_type(self.list_type.value_type())
 
 
+cdef class StructType(DataType):
+    cdef void init(self, const shared_ptr[CDataType]& type):
+        DataType.init(self, type)
+        self.struct_type = <const CStructType*> type.get()
+        self.num_children = self.struct_type.num_children()
+
+    def num_fields(self):
+        return self.num_children
+
+    def field(self, index):
+        if index < 0 or index >= self.num_children:
+            raise IndexError
+        result = Field()
+        result.init(self.struct_type.child(index))
+        return result
+
+    def __getitem__(self, key):
+        if not isinstance(key, (int, long)):
+            raise TypeError('field index must be an integer')
+        return self.field(key)
+
+
 cdef class TimestampType(DataType):
 
     cdef void init(self, const shared_ptr[CDataType]& type):
