@@ -495,6 +495,11 @@ cdef class DecimalArray(FixedSizeBinaryArray):
     pass
 
 
+# Importing this manually, as done in Cython 0.29.x
+cdef extern from "<memory>" namespace "std" nogil:
+    cdef shared_ptr[T] dynamic_pointer_cast[T, U](const shared_ptr[U]&)
+
+
 cdef class ListArray(Array):
 
     @staticmethod
@@ -516,6 +521,29 @@ cdef class ListArray(Array):
         with nogil:
             check_status(CListArray.FromArrays(
                 deref(offsets.ap), deref(values.ap), cpool, &out))
+        return pyarrow_wrap_array(out)
+
+    @property
+    def offsets_buffer(self):
+        cdef CListArray* c_list_array = <CListArray*>self.ap
+        cdef shared_ptr[CBuffer] out = c_list_array.value_offsets()
+        return pyarrow_wrap_buffer(out)
+
+    @property
+    def offsets_array(self):
+        cdef CListArray* c_list_array = <CListArray*>self.ap
+        cdef shared_ptr[CBuffer] offsets_buffer = c_list_array.value_offsets()
+        cdef shared_ptr[CInt32Array] c_int32_array
+        c_int32_array = make_shared[CInt32Array](
+            self.ap.length() + 1, offsets_buffer,
+            c_list_array.null_bitmap(), c_list_array.null_count(), c_list_array.offset()
+        )
+        return pyarrow_wrap_array(dynamic_pointer_cast[CArray, CInt32Array](c_int32_array))
+
+    @property
+    def values_array(self):
+        cdef CListArray* c_list_array = <CListArray*>self.ap
+        cdef shared_ptr[CArray] out = c_list_array.values()
         return pyarrow_wrap_array(out)
 
 
@@ -619,15 +647,21 @@ cdef class DictionaryArray(Array):
 
 cdef class StructArray(Array):
     @staticmethod
-    def from_arrays(field_names, arrays):
+    def from_arrays(field_names, arrays, Buffer nulls_buffer=None, int64_t null_count=0, int64_t offset=0):
         cdef:
             Array array
             shared_ptr[CArray] c_array
             vector[shared_ptr[CArray]] c_arrays
+            shared_ptr[CBuffer] c_nulls_buffer
             shared_ptr[CArray] c_result
             ssize_t num_arrays
             ssize_t length
             ssize_t i
+
+        if nulls_buffer:
+            c_nulls_buffer = nulls_buffer.buffer
+        else:
+            c_nulls_buffer.reset()
 
         num_arrays = len(arrays)
         if num_arrays == 0:
@@ -648,24 +682,43 @@ cdef class StructArray(Array):
             zip(field_names, arrays)
         ])
 
-        c_result.reset(new CStructArray(struct_type.sp_type, length, c_arrays))
+        c_result.reset(
+            new CStructArray(
+                struct_type.sp_type, length, c_arrays,
+                c_nulls_buffer, null_count, offset))
         result = StructArray()
         result.init(c_result)
         return result
 
-    def num_children(self):
+    @property
+    def num_fields(self):
         return self.ap.num_fields()
 
-    def child_array(self, int i):
+    @property
+    def nulls_buffer(self):
+        cdef shared_ptr[CBuffer] out = self.ap.null_bitmap()
+        if out == nullptr:
+            return None
+        return pyarrow_wrap_buffer(out)
+
+    @property
+    def offset(self):
+        return self.ap.offset()
+
+    def field(self, int i):
         cdef:
             CStructArray* c_struct_array
             shared_ptr[CArray] child
-        if i < 0 or i >= self.num_children():
+        if i < 0 or i >= self.num_fields:
             raise IndexError('Invalid child array index')
 
         c_struct_array = <CStructArray*>self.ap
         child = c_struct_array.field(i)
         return pyarrow_wrap_array(child)
+
+    def iter_fields(self):
+        for i in xrange(self.num_fields):
+            yield self.field(i)
 
 
 cdef dict _array_classes = {

@@ -218,10 +218,6 @@ Status ListArray::FromArrays(const Array& offsets, const Array& values, MemoryPo
     return Status::Invalid("List offsets must have non-zero length");
   }
 
-  if (ARROW_PREDICT_FALSE(offsets.null_count() > 0)) {
-    return Status::Invalid("Null offsets in ListArray::FromArrays not yet implemented");
-  }
-
   if (ARROW_PREDICT_FALSE(offsets.type_id() != Type::INT32)) {
     return Status::Invalid("List offsets must be signed int32");
   }

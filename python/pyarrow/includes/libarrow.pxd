@@ -88,8 +88,11 @@ cdef extern from "arrow/api.h" namespace "arrow" nogil:
         shared_ptr[CDataType] type()
 
         int64_t length()
+        int64_t offset()
         int64_t null_count()
         Type type_id()
+
+        shared_ptr[CBuffer] null_bitmap()
 
         int num_fields()
 
@@ -298,6 +301,7 @@ cdef extern from "arrow/api.h" namespace "arrow" nogil:
         const int32_t* raw_value_offsets()
         int32_t value_offset(int i)
         int32_t value_length(int i)
+        shared_ptr[CBuffer] value_offsets()
         shared_ptr[CArray] values()
         shared_ptr[CDataType] value_type()
 
@@ -309,11 +313,12 @@ cdef extern from "arrow/api.h" namespace "arrow" nogil:
 
     cdef cppclass CStructArray" arrow::StructArray"(CArray):
         CStructArray(shared_ptr[CDataType] type, int64_t length,
+                     vector[shared_ptr[CArray]] children)
+        CStructArray(shared_ptr[CDataType] type, int64_t length,
                      vector[shared_ptr[CArray]] children,
-                     shared_ptr[CBuffer] null_bitmap=nullptr,
-                     int64_t null_count=0,
-                     int64_t offset=0)
-
+                     shared_ptr[CBuffer] null_bitmap,
+                     int64_t null_count,
+                     int64_t offset)
         shared_ptr[CArray] field(int pos)
         const vector[shared_ptr[CArray]] fields()
 
