@@ -184,8 +184,12 @@ class ARROW_EXPORT BufferBuilder {
   explicit BufferBuilder(MemoryPool* pool)
       : pool_(pool), data_(nullptr), capacity_(0), size_(0) {}
 
-  /// Resizes the buffer to the nearest multiple of 64 bytes per Layout.md
   Status Resize(int64_t elements) {
+    return Resize(elements, true);
+  }
+
+  /// Resizes the buffer to the nearest multiple of 64 bytes per Layout.md
+  Status Resize(int64_t elements, bool zeroed) {
     // Resize(0) is a no-op
     if (elements == 0) {
       return Status::OK();
@@ -197,7 +201,7 @@ class ARROW_EXPORT BufferBuilder {
     RETURN_NOT_OK(buffer_->Resize(elements));
     capacity_ = buffer_->capacity();
     data_ = buffer_->mutable_data();
-    if (capacity_ > old_capacity) {
+    if (zeroed && capacity_ > old_capacity) {
       memset(data_ + old_capacity, 0, capacity_ - old_capacity);
     }
     return Status::OK();
@@ -206,7 +210,7 @@ class ARROW_EXPORT BufferBuilder {
   Status Append(const uint8_t* data, int64_t length) {
     if (capacity_ < length + size_) {
       int64_t new_capacity = BitUtil::NextPower2(length + size_);
-      RETURN_NOT_OK(Resize(new_capacity));
+      RETURN_NOT_OK(Resize(new_capacity, false));
     }
     UnsafeAppend(data, length);
     return Status::OK();
