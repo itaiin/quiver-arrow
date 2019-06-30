@@ -86,6 +86,18 @@ cdef class FileMetaData:
     def __cinit__(self):
         pass
 
+    @staticmethod
+    def from_buffer(bytes buffer):
+        cdef:
+            shared_ptr[CFileMetaData] sp_metadata
+            uint32_t buffer_size
+            FileMetaData result = FileMetaData()
+        buffer_size = len(buffer)
+        sp_metadata = CFileMetaData.Make(buffer, &buffer_size)
+        result.init(sp_metadata)
+        return result
+
+
     cdef init(self, const shared_ptr[CFileMetaData]& metadata):
         self.sp_metadata = metadata
         self._metadata = metadata.get()
